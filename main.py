@@ -88,7 +88,7 @@ def _doppler_payload(satellite_id: str, body: DopplerRequest) -> dict[str, Any]:
     observer = _observer(body.observer)
     topo = (sat - observer).at(t)
     _, _, _, _, _, range_rate = topo.frame_latlon_and_rates(observer)
-    radial_m_s = range_rate.m_per_s
+    radial_m_s = float(range_rate.m_per_s)
     c = 299_792_458.0
     shift_hz = -(radial_m_s / c) * body.nominal_frequency_hz
     return {
@@ -96,8 +96,8 @@ def _doppler_payload(satellite_id: str, body: DopplerRequest) -> dict[str, Any]:
         "timestamp": t.utc_iso(),
         "nominal_frequency_hz": body.nominal_frequency_hz,
         "range_rate_m_s": radial_m_s,
-        "doppler_shift_hz": shift_hz,
-        "corrected_frequency_hz": body.nominal_frequency_hz + shift_hz,
+        "doppler_shift_hz": float(shift_hz),
+        "corrected_frequency_hz": float(body.nominal_frequency_hz + shift_hz),
     }
 
 def _post_json(url: str, payload: dict[str, Any], api_key: str = "") -> dict[str, Any]:
@@ -164,17 +164,18 @@ def list_satellites(x_api_key: str = Header(default="")):
 def position(satellite_id: str, x_api_key: str = Header(default="")):
     _auth(x_api_key)
     sat = _satellite(satellite_id); t = _sf_time(None); geo = sat.at(t); sub = wgs84.subpoint(geo)
-    return {"satellite_id": satellite_id, "timestamp": t.utc_iso(), "latitude_deg": sub.latitude.degrees,
-            "longitude_deg": sub.longitude.degrees, "altitude_km": sub.elevation.km,
-            "eci_km": list(geo.position.km), "velocity_km_s": list(geo.velocity.km_per_s)}
+    return {"satellite_id": satellite_id, "timestamp": t.utc_iso(), "latitude_deg": float(sub.latitude.degrees),
+            "longitude_deg": float(sub.longitude.degrees), "altitude_km": float(sub.elevation.km),
+            "eci_km": [float(v) for v in geo.position.km], "velocity_km_s": [float(v) for v in geo.velocity.km_per_s]}
 
 @app.post("/orbit/satellites/{satellite_id}/look-angle")
 def look_angle(satellite_id: str, body: LookAngleRequest, x_api_key: str = Header(default="")):
     _auth(x_api_key)
     sat = _satellite(satellite_id); t = _sf_time(body.at); topocentric = (sat - _observer(body.observer)).at(t)
     alt, az, distance = topocentric.altaz()
-    return {"satellite_id": satellite_id, "timestamp": t.utc_iso(), "azimuth_deg": az.degrees,
-            "elevation_deg": alt.degrees, "range_km": distance.km, "visible": alt.degrees > 0}
+    elevation = float(alt.degrees)
+    return {"satellite_id": satellite_id, "timestamp": t.utc_iso(), "azimuth_deg": float(az.degrees),
+            "elevation_deg": elevation, "range_km": float(distance.km), "visible": bool(elevation > 0)}
 
 @app.post("/orbit/satellites/{satellite_id}/passes")
 def passes(satellite_id: str, body: PassRequest, x_api_key: str = Header(default="")):
@@ -185,8 +186,8 @@ def passes(satellite_id: str, body: PassRequest, x_api_key: str = Header(default
     labels = {0: "AOS", 1: "MAX", 2: "LOS"}; out = []
     for t, event in zip(times, events):
         topocentric = (sat - observer).at(t); alt, az, distance = topocentric.altaz()
-        out.append({"event": labels[int(event)], "timestamp": t.utc_iso(), "azimuth_deg": az.degrees,
-                    "elevation_deg": alt.degrees, "range_km": distance.km})
+        out.append({"event": labels[int(event)], "timestamp": t.utc_iso(), "azimuth_deg": float(az.degrees),
+                    "elevation_deg": float(alt.degrees), "range_km": float(distance.km)})
     return {"satellite_id": satellite_id, "events": out}
 
 @app.post("/orbit/satellites/{satellite_id}/doppler")
